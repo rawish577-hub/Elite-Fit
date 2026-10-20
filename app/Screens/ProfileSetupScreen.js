@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '../supabase';
+
 import {
   StyleSheet,
   Text,
@@ -6,6 +8,7 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  Alert,
 } from 'react-native';
 
 export default function ProfileSetupScreen({ navigation }) {
@@ -17,28 +20,169 @@ export default function ProfileSetupScreen({ navigation }) {
   const [goal, setGoal] = useState('');
   const [healthIssue, setHealthIssue] = useState('');
 
-  const handleContinue = () => {
-    const userData = {
-      name,
-      age,
-      gender,
-      height,
-      weight,
-      goal,
-      healthIssue,
-    };
+  // =========================
+  // CONTINUE / SAVE PROFILE
+  // =========================
+  const handleContinue = async () => {
+    // Remove extra spaces
+    const cleanName = name.trim();
+    const cleanAge = age.trim();
+    const cleanHeight = height.trim();
+    const cleanWeight = weight.trim();
+    const cleanHealthIssue = healthIssue.trim();
 
-    navigation.navigate('Dashboard', {
-  profileData: {
-    name,
-    age,
-    gender,
-    height,
-    weight,
-    goal,
-    healthIssue,
-  },
-});
+    // =========================
+    // REQUIRED FIELDS
+    // =========================
+    if (
+      !cleanName ||
+      !cleanAge ||
+      !gender ||
+      !cleanHeight ||
+      !cleanWeight ||
+      !goal
+    ) {
+      Alert.alert(
+        'Incomplete Profile',
+        'Please complete all required fields.'
+      );
+      return;
+    }
+
+    // =========================
+    // AGE VALIDATION
+    // =========================
+    const ageNumber = parseInt(cleanAge, 10);
+
+    if (isNaN(ageNumber)) {
+      Alert.alert('Invalid Age', 'Age must contain numbers only.');
+      return;
+    }
+
+    if (ageNumber < 1 || ageNumber > 120) {
+      Alert.alert(
+        'Invalid Age',
+        'Please enter a valid age between 1 and 120.'
+      );
+      return;
+    }
+
+    // =========================
+    // HEIGHT VALIDATION
+    // =========================
+    const heightNumber = parseFloat(cleanHeight);
+
+    if (isNaN(heightNumber)) {
+      Alert.alert(
+        'Invalid Height',
+        'Height must contain numbers only.'
+      );
+      return;
+    }
+
+    if (heightNumber < 50 || heightNumber > 250) {
+      Alert.alert(
+        'Invalid Height',
+        'Please enter a valid height between 50 and 250 cm.'
+      );
+      return;
+    }
+
+    // =========================
+    // WEIGHT VALIDATION
+    // =========================
+    const weightNumber = parseFloat(cleanWeight);
+
+    if (isNaN(weightNumber)) {
+      Alert.alert(
+        'Invalid Weight',
+        'Weight must contain numbers only.'
+      );
+      return;
+    }
+
+    if (weightNumber < 20 || weightNumber > 300) {
+      Alert.alert(
+        'Invalid Weight',
+        'Please enter a valid weight between 20 and 300 kg.'
+      );
+      return;
+    }
+
+    try {
+      // =========================
+      // GET CURRENT USER
+      // =========================
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        Alert.alert(
+          'Session Error',
+          'User session not found. Please login again.'
+        );
+        return;
+      }
+
+      // =========================
+      // PROFILE DATA
+      // =========================
+      const profileData = {
+        id: user.id,
+        name: cleanName,
+        age: ageNumber,
+        gender: gender,
+        height: heightNumber,
+        weight: weightNumber,
+        goal: goal,
+        health_issue: cleanHealthIssue,
+      };
+
+      // =========================
+      // SAVE / UPDATE PROFILE
+      // =========================
+      const { error } = await supabase
+        .from('profiles')
+        .upsert(profileData);
+
+      if (error) {
+        console.log('Profile save error:', error);
+
+        Alert.alert(
+          'Profile Save Failed',
+          error.message
+        );
+
+        return;
+      }
+
+      console.log('Profile saved successfully');
+
+      // =========================
+      // GO TO DASHBOARD
+      // =========================
+      navigation.replace('Dashboard', {
+        profileData: {
+          name: cleanName,
+          age: ageNumber,
+          gender: gender,
+          height: heightNumber,
+          weight: weightNumber,
+          goal: goal,
+          healthIssue: cleanHealthIssue,
+        },
+      });
+
+    } catch (error) {
+      console.log('Profile error:', error);
+
+      Alert.alert(
+        'Error',
+        'Something went wrong. Please try again.'
+      );
+    }
   };
 
   return (
@@ -46,8 +190,12 @@ export default function ProfileSetupScreen({ navigation }) {
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.logo}>ELITE-FIT</Text>
+      {/* LOGO */}
+      <Text style={styles.logo}>
+        ELITE-FIT
+      </Text>
 
+      {/* TITLE */}
       <Text style={styles.title}>
         Create Your Fitness Profile
       </Text>
@@ -56,8 +204,10 @@ export default function ProfileSetupScreen({ navigation }) {
         Tell us about yourself so we can personalize your fitness journey.
       </Text>
 
-      {/* NAME */}
-      <Text style={styles.label}>Full Name</Text>
+      {/* ================= NAME ================= */}
+      <Text style={styles.label}>
+        Full Name
+      </Text>
 
       <TextInput
         style={styles.input}
@@ -67,8 +217,10 @@ export default function ProfileSetupScreen({ navigation }) {
         onChangeText={setName}
       />
 
-      {/* AGE */}
-      <Text style={styles.label}>Age</Text>
+      {/* ================= AGE ================= */}
+      <Text style={styles.label}>
+        Age
+      </Text>
 
       <TextInput
         style={styles.input}
@@ -76,13 +228,20 @@ export default function ProfileSetupScreen({ navigation }) {
         placeholderTextColor="#777"
         keyboardType="numeric"
         value={age}
-        onChangeText={setAge}
+        onChangeText={(text) => {
+          // Numbers only
+          const numbersOnly = text.replace(/[^0-9]/g, '');
+          setAge(numbersOnly);
+        }}
       />
 
-      {/* GENDER */}
-      <Text style={styles.label}>Gender</Text>
+      {/* ================= GENDER ================= */}
+      <Text style={styles.label}>
+        Gender
+      </Text>
 
       <View style={styles.row}>
+
         <TouchableOpacity
           style={[
             styles.option,
@@ -116,38 +275,68 @@ export default function ProfileSetupScreen({ navigation }) {
             Female
           </Text>
         </TouchableOpacity>
+
       </View>
 
-      {/* HEIGHT */}
-      <Text style={styles.label}>Height (cm)</Text>
+      {/* ================= HEIGHT ================= */}
+      <Text style={styles.label}>
+        Height (cm)
+      </Text>
 
       <TextInput
         style={styles.input}
         placeholder="e.g. 165"
         placeholderTextColor="#777"
-        keyboardType="numeric"
+        keyboardType="decimal-pad"
         value={height}
-        onChangeText={setHeight}
+        onChangeText={(text) => {
+          // Numbers + one decimal point
+          const validNumber = text.replace(/[^0-9.]/g, '');
+
+          // Only one decimal point
+          const parts = validNumber.split('.');
+
+          if (parts.length > 2) {
+            return;
+          }
+
+          setHeight(validNumber);
+        }}
       />
 
-      {/* WEIGHT */}
-      <Text style={styles.label}>Weight (kg)</Text>
+      {/* ================= WEIGHT ================= */}
+      <Text style={styles.label}>
+        Weight (kg)
+      </Text>
 
       <TextInput
         style={styles.input}
         placeholder="e.g. 60"
         placeholderTextColor="#777"
-        keyboardType="numeric"
+        keyboardType="decimal-pad"
         value={weight}
-        onChangeText={setWeight}
+        onChangeText={(text) => {
+          // Numbers + one decimal point
+          const validNumber = text.replace(/[^0-9.]/g, '');
+
+          // Only one decimal point
+          const parts = validNumber.split('.');
+
+          if (parts.length > 2) {
+            return;
+          }
+
+          setWeight(validNumber);
+        }}
       />
 
-      {/* GOAL */}
+      {/* ================= GOAL ================= */}
       <Text style={styles.label}>
         What's your fitness goal?
       </Text>
 
       <View style={styles.goalContainer}>
+
         <TouchableOpacity
           style={[
             styles.goalButton,
@@ -198,15 +387,19 @@ export default function ProfileSetupScreen({ navigation }) {
             Maintain Weight
           </Text>
         </TouchableOpacity>
+
       </View>
 
-      {/* HEALTH */}
+      {/* ================= HEALTH ISSUE ================= */}
       <Text style={styles.label}>
         Any health issues?
       </Text>
 
       <TextInput
-        style={[styles.input, styles.healthInput]}
+        style={[
+          styles.input,
+          styles.healthInput,
+        ]}
         placeholder="e.g. Blood pressure, fever, heart rate..."
         placeholderTextColor="#777"
         value={healthIssue}
@@ -214,7 +407,7 @@ export default function ProfileSetupScreen({ navigation }) {
         multiline
       />
 
-      {/* CONTINUE */}
+      {/* ================= CONTINUE ================= */}
       <TouchableOpacity
         style={styles.button}
         onPress={handleContinue}
@@ -224,7 +417,7 @@ export default function ProfileSetupScreen({ navigation }) {
         </Text>
       </TouchableOpacity>
 
-      {/* BACK */}
+      {/* ================= BACK ================= */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
@@ -233,11 +426,13 @@ export default function ProfileSetupScreen({ navigation }) {
           Back
         </Text>
       </TouchableOpacity>
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+
   container: {
     flexGrow: 1,
     backgroundColor: '#0B0F0E',
@@ -366,4 +561,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+
 });

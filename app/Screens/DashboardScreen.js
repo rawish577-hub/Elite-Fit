@@ -1,63 +1,133 @@
-import React from 'react';
+
+import React, { useCallback, useState } from 'react';
+import { supabase } from '../supabase';
 import {
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
   ScrollView,
+  Modal,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function DashboardScreen({ navigation, route }) {
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
 
-  // Profile Setup se aane wala data
   const profileData = route?.params?.profileData || {};
-
   const userName = profileData.name || 'User';
+
+  const checkProfileExist = async () => {
+    try {
+      const {
+        data: { user: currentUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !currentUser) {
+        console.log('User not found:', userError);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, age, gender, height, weight, goal, health_issue')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (error) {
+        console.log('Profile check error:', error);
+        return;
+      }
+
+      if (!data) {
+        setShowProfilePopup(true);
+        return;
+      }
+
+      const profileComplete =
+        data.name &&
+        data.age !== null &&
+        data.gender &&
+        data.height !== null &&
+        data.weight !== null &&
+        data.goal;
+
+      setShowProfilePopup(!profileComplete);
+    } catch (error) {
+      console.log('Profile checking error:', error);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      checkProfileExist();
+    }, [])
+  );
 
   return (
     <View style={styles.container}>
+      <Modal
+        visible={showProfilePopup}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowProfilePopup(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.profilePopup}>
+            <Text style={styles.popupIcon}>👤</Text>
 
-      {/* ================= CONTENT ================= */}
+            <Text style={styles.popupTitle}>
+              Complete Your Profile
+            </Text>
+
+            <Text style={styles.popupText}>
+              Your fitness profile is not complete yet.
+              Please complete your profile to get
+              personalized workouts and nutrition guidance.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.completeButton}
+              onPress={() => {
+                setShowProfilePopup(false);
+                navigation.navigate('ProfileSetup');
+              }}
+            >
+              <Text style={styles.completeButtonText}>
+                Complete Profile
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-
-        {/* ================= HEADER ================= */}
-
+        {/* Header */}
         <View style={styles.header}>
-
           <View>
             <Text style={styles.greeting}>
               Welcome, {userName} 👋
             </Text>
 
-            <Text style={styles.logo}>
-              ELITE-FIT
-            </Text>
+            <Text style={styles.logo}>ELITE-FIT</Text>
           </View>
 
           <TouchableOpacity
             style={styles.profileButton}
             onPress={() =>
-              navigation.navigate('Profile', {
-                profileData: profileData,
-              })
+              navigation.navigate('Profile', { profileData })
             }
           >
-            <Text style={styles.profileIcon}>
-              👤
-            </Text>
+            <Text style={styles.profileIcon}>👤</Text>
           </TouchableOpacity>
-
         </View>
 
-
-        {/* ================= WELCOME CARD ================= */}
-
+        {/* Welcome Card */}
         <View style={styles.welcomeCard}>
-
           <Text style={styles.welcomeTitle}>
             Ready for today's workout? 💪
           </Text>
@@ -75,413 +145,270 @@ export default function DashboardScreen({ navigation, route }) {
               Start Workout
             </Text>
           </TouchableOpacity>
-
         </View>
 
-
-        {/* ================= PROGRESS ================= */}
-
-        <Text style={styles.sectionTitle}>
-          Your Progress
-        </Text>
+        {/* Progress Statistics */}
+        <Text style={styles.sectionTitle}>Your Progress</Text>
 
         <View style={styles.statsRow}>
-
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              0
-            </Text>
-
-            <Text style={styles.statLabel}>
-              Workouts
-            </Text>
+            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statLabel}>Workouts</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              0
-            </Text>
-
-            <Text style={styles.statLabel}>
-              Calories
-            </Text>
+            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statLabel}>Calories</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              0
-            </Text>
-
-            <Text style={styles.statLabel}>
-              Days
-            </Text>
+            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statLabel}>Days</Text>
           </View>
-
         </View>
 
+        {/* Explore Features */}
+        <Text style={styles.sectionTitle}>Explore Elite-Fit</Text>
 
-        {/* ================= EXPLORE ================= */}
-
-        <Text style={styles.sectionTitle}>
-          Explore Elite-Fit
-        </Text>
-
-
-        {/* ================= WORKOUT ================= */}
-
+        {/* Workouts */}
         <TouchableOpacity
           style={styles.featureCard}
           onPress={() => navigation.navigate('Workouts')}
         >
-
           <View style={styles.iconBox}>
-            <Text style={styles.featureIcon}>
-              🏋️
-            </Text>
+            <Text style={styles.featureIcon}>🏋️</Text>
           </View>
 
           <View style={styles.featureInfo}>
-
-            <Text style={styles.featureTitle}>
-              Workouts
-            </Text>
-
+            <Text style={styles.featureTitle}>Workouts</Text>
             <Text style={styles.featureText}>
-              Personalized exercises designed for your
-              fitness goal.
+              Personalized exercises designed for your fitness goal.
             </Text>
-
           </View>
 
-          <Text style={styles.arrow}>
-            ›
-          </Text>
-
+          <Text style={styles.arrow}>›</Text>
         </TouchableOpacity>
 
-
-        {/* ================= AI POSTURE DETECTION ================= */}
-
+        {/* AI Posture Detection */}
         <TouchableOpacity
           style={styles.postureCard}
           activeOpacity={0.8}
-          onPress={() =>
-            navigation.navigate('PostureDetection')
-          }
+          onPress={() => navigation.navigate('PostureDetection')}
         >
-
           <View style={styles.postureIconBox}>
-            <Text style={styles.postureIcon}>
-              🧍
-            </Text>
+            <Text style={styles.postureIcon}>🧍</Text>
           </View>
 
           <View style={styles.postureInfo}>
-
             <View style={styles.postureTitleRow}>
-
               <Text style={styles.postureTitle}>
                 AI Posture Detection
               </Text>
 
               <View style={styles.aiBadge}>
-                <Text style={styles.aiBadgeText}>
-                  AI
-                </Text>
+                <Text style={styles.aiBadgeText}>AI</Text>
               </View>
-
             </View>
 
             <Text style={styles.postureText}>
               Analyze your exercise form with AI camera
               detection and get instant feedback.
             </Text>
-
           </View>
 
-          <Text style={styles.postureArrow}>
-            ›
-          </Text>
-
+          <Text style={styles.postureArrow}>›</Text>
         </TouchableOpacity>
 
-
-        {/* ================= AI TRAINER ================= */}
-
+        {/* AI Trainer */}
         <TouchableOpacity
           style={styles.featureCard}
           onPress={() => navigation.navigate('AITrainer')}
         >
-
           <View style={styles.iconBox}>
-            <Text style={styles.featureIcon}>
-              🤖
-            </Text>
+            <Text style={styles.featureIcon}>🤖</Text>
           </View>
 
           <View style={styles.featureInfo}>
-
-            <Text style={styles.featureTitle}>
-              AI Trainer
-            </Text>
-
+            <Text style={styles.featureTitle}>AI Trainer</Text>
             <Text style={styles.featureText}>
-              Get smart fitness guidance from your
-              personal AI coach.
+              Get smart fitness guidance from your personal AI coach.
             </Text>
-
           </View>
 
-          <Text style={styles.arrow}>
-            ›
-          </Text>
-
+          <Text style={styles.arrow}>›</Text>
         </TouchableOpacity>
 
-
-        {/* ================= NUTRITION ================= */}
-
+        {/* Nutrition */}
         <TouchableOpacity
           style={styles.featureCard}
           onPress={() => navigation.navigate('Nutrition')}
         >
-
           <View style={styles.iconBox}>
-            <Text style={styles.featureIcon}>
-              🥗
-            </Text>
+            <Text style={styles.featureIcon}>🥗</Text>
           </View>
 
           <View style={styles.featureInfo}>
-
-            <Text style={styles.featureTitle}>
-              Nutrition
-            </Text>
-
+            <Text style={styles.featureTitle}>Nutrition</Text>
             <Text style={styles.featureText}>
-              Discover personalized nutrition
-              recommendations.
+              Discover personalized nutrition recommendations.
             </Text>
-
           </View>
 
-          <Text style={styles.arrow}>
-            ›
-          </Text>
-
+          <Text style={styles.arrow}>›</Text>
         </TouchableOpacity>
 
+        {/* Progress */}
+        <TouchableOpacity
+          style={styles.featureCard}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('Progress')}
+        >
+          <View style={styles.iconBox}>
+            <Text style={styles.featureIcon}>📊</Text>
+          </View>
 
-        {/* ================= PROGRESS ================= */}
-<TouchableOpacity
-  style={styles.featureCard}
-  activeOpacity={0.8}
-  onPress={() => navigation.navigate('Progress')}
->
+          <View style={styles.featureInfo}>
+            <Text style={styles.featureTitle}>Progress</Text>
+            <Text style={styles.featureText}>
+              Track your workouts and fitness achievements.
+            </Text>
+          </View>
 
-  <View style={styles.iconBox}>
-    <Text style={styles.featureIcon}>
-      📊
-    </Text>
-  </View>
+          <Text style={styles.arrow}>›</Text>
+        </TouchableOpacity>
 
-  <View style={styles.featureInfo}>
+        {/* Health Monitoring */}
+        <TouchableOpacity
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('HealthMonitoring')}
+        >
+          <View style={styles.iconBox}>
+            <Text style={styles.featureIcon}>❤️</Text>
+          </View>
 
-    <Text style={styles.featureTitle}>
-      Progress
-    </Text>
+          <View style={styles.featureInfo}>
+            <Text style={styles.featureTitle}>Health Monitoring</Text>
+            <Text style={styles.featureText}>
+              Monitor important health and fitness information.
+            </Text>
+          </View>
 
-    <Text style={styles.featureText}>
-      Track your workouts and fitness
-      achievements.
-    </Text>
+          <Text style={styles.arrow}>›</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
-  </View>
-
-  <Text style={styles.arrow}>
-    ›
-  </Text>
-
-</TouchableOpacity>
-        
-         
-
-
-       {/* ================= HEALTH MONITORING ================= */}
-
-<TouchableOpacity
-  style={styles.featureCard}
-  onPress={() => navigation.navigate('HealthMonitoring')}
->
-
-  <View style={styles.iconBox}>
-    <Text style={styles.featureIcon}>
-      ❤️
-    </Text>
-  </View>
-
-  <View style={styles.featureInfo}>
-
-    <Text style={styles.featureTitle}>
-      Health Monitoring
-    </Text>
-
-    <Text style={styles.featureText}>
-      Monitor important health and fitness
-      information.
-    </Text>
-
-  </View>
-
-  <Text style={styles.arrow}>
-    ›
-  </Text>
-
-</TouchableOpacity>
-
-</ScrollView>
-
-       
-
-          
-
-      {/* ================================================= */}
-      {/* ================= BOTTOM NAV ==================== */}
-      {/* ================================================= */}
-
+      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() =>
+            navigation.navigate('Dashboard', { profileData })
+          }
+        >
+          <Text style={styles.navIcon}>🏠</Text>
+          <Text style={styles.activeNavText}>Home</Text>
+        </TouchableOpacity>
 
-        {/* HOME */}
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Workouts')}
+        >
+          <Text style={styles.navIcon}>🏋️</Text>
+          <Text style={styles.navText}>Workout</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate('PostureDetection')}
+        >
+          <Text style={styles.navIcon}>🧍</Text>
+          <Text style={styles.navText}>Posture</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate('AITrainer')}
+        >
+          <Text style={styles.navIcon}>🤖</Text>
+          <Text style={styles.navText}>AI Trainer</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Nutrition')}
+        >
+          <Text style={styles.navIcon}>🥗</Text>
+          <Text style={styles.navText}>Nutrition</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
           onPress={() =>
-            navigation.navigate('Dashboard', {
-              profileData: profileData,
-            })
+            navigation.navigate('Profile', { profileData })
           }
         >
-          <Text style={styles.navIcon}>
-            🏠
-          </Text>
-
-          <Text style={styles.activeNavText}>
-            Home
-          </Text>
+          <Text style={styles.navIcon}>👤</Text>
+          <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
-
-
-        {/* WORKOUT */}
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() =>
-            navigation.navigate('Workouts')
-          }
-        >
-          <Text style={styles.navIcon}>
-            🏋️
-          </Text>
-
-          <Text style={styles.navText}>
-            Workout
-          </Text>
-        </TouchableOpacity>
-
-
-        {/* ================= AI POSTURE ================= */}
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() =>
-            navigation.navigate('PostureDetection')
-          }
-        >
-
-          <Text style={styles.navIcon}>
-            🧍
-          </Text>
-
-          <Text style={styles.navText}>
-            Posture
-          </Text>
-
-        </TouchableOpacity>
-
-
-        {/* ================= AI TRAINER ================= */}
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() =>
-            navigation.navigate('AITrainer')
-          }
-        >
-
-          <Text style={styles.navIcon}>
-            🤖
-          </Text>
-
-          <Text style={styles.navText}>
-            AI Trainer
-          </Text>
-
-        </TouchableOpacity>
-
-
-        {/* ================= NUTRITION ================= */}
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() =>
-            navigation.navigate('Nutrition')
-          }
-        >
-
-          <Text style={styles.navIcon}>
-            🥗
-          </Text>
-
-          <Text style={styles.navText}>
-            Nutrition
-          </Text>
-
-        </TouchableOpacity>
-
-
-        {/* ================= PROFILE ================= */}
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() =>
-            navigation.navigate('Profile', {
-              profileData: profileData,
-            })
-          }
-        >
-
-          <Text style={styles.navIcon}>
-            👤
-          </Text>
-
-          <Text style={styles.navText}>
-            Profile
-          </Text>
-
-        </TouchableOpacity>
-
       </View>
-
     </View>
   );
 }
 
-
-/* ========================================================= */
-/* ======================= STYLES ========================== */
-/* ========================================================= */
-
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 25,
+  },
+
+  profilePopup: {
+    width: '100%',
+    backgroundColor: '#17231D',
+    borderRadius: 22,
+    padding: 25,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#39FF88',
+  },
+
+  popupIcon: {
+    fontSize: 45,
+    marginBottom: 12,
+  },
+
+  popupTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+
+  popupText: {
+    color: '#A9B0AC',
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+
+  completeButton: {
+    width: '100%',
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#39FF88',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  completeButtonText: {
+    color: '#07100B',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 
   container: {
     flex: 1,
@@ -493,9 +420,6 @@ const styles = StyleSheet.create({
     paddingTop: 25,
     paddingBottom: 105,
   },
-
-
-  /* ================= HEADER ================= */
 
   header: {
     flexDirection: 'row',
@@ -529,9 +453,6 @@ const styles = StyleSheet.create({
   profileIcon: {
     fontSize: 22,
   },
-
-
-  /* ================= WELCOME ================= */
 
   welcomeCard: {
     backgroundColor: '#17231D',
@@ -570,18 +491,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-
-  /* ================= SECTION ================= */
-
   sectionTitle: {
     color: '#FFFFFF',
     fontSize: 19,
     fontWeight: 'bold',
     marginBottom: 15,
   },
-
-
-  /* ================= STATS ================= */
 
   statsRow: {
     flexDirection: 'row',
@@ -608,9 +523,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 5,
   },
-
-
-  /* ================= FEATURE CARD ================= */
 
   featureCard: {
     flexDirection: 'row',
@@ -659,9 +571,6 @@ const styles = StyleSheet.create({
     fontSize: 30,
     marginLeft: 8,
   },
-
-
-  /* ================= AI POSTURE CARD ================= */
 
   postureCard: {
     flexDirection: 'row',
@@ -731,9 +640,6 @@ const styles = StyleSheet.create({
     marginLeft: 7,
   },
 
-
-  /* ================= BOTTOM NAV ================= */
-
   bottomNav: {
     position: 'absolute',
     left: 0,
@@ -771,5 +677,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-
 });

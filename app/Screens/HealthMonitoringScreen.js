@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -6,7 +7,11 @@ import {
   View,
   ScrollView,
   TextInput,
+  Alert,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
+import { supabase } from '../supabase';
 
 export default function HealthMonitoringScreen({ navigation }) {
   const [bloodPressure, setBloodPressure] = useState('');
@@ -14,28 +19,139 @@ export default function HealthMonitoringScreen({ navigation }) {
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
   const [medicalCondition, setMedicalCondition] = useState('');
+  const [saving, setSaving] = useState(false);
 
+  // Calculate BMI
   const calculateBMI = () => {
     const w = parseFloat(weight);
     const h = parseFloat(height);
 
-    if (!w || !h) {
+    if (
+      !Number.isFinite(w) ||
+      !Number.isFinite(h) ||
+      w <= 0 ||
+      h <= 0
+    ) {
       return null;
     }
 
-    const heightInMeters = h / 100;
-    return (w / (heightInMeters * heightInMeters)).toFixed(1);
+    return Number((w / ((h / 100) ** 2)).toFixed(1));
   };
 
   const bmi = calculateBMI();
 
+  // Get BMI category
   const getBMIStatus = () => {
-    if (!bmi) return '';
+    if (bmi === null) return '';
 
     if (bmi < 18.5) return 'Underweight';
     if (bmi < 25) return 'Normal';
     if (bmi < 30) return 'Overweight';
+
     return 'Obese';
+  };
+
+  // Save health information to Supabase
+  const handleSaveHealth = async () => {
+    if (saving) return;
+
+    const bp = bloodPressure.trim();
+    const hr = Number(heartRate);
+    const w = Number(weight);
+    const h = Number(height);
+
+    // Check required fields
+    if (
+      !bp ||
+      !heartRate.trim() ||
+      !weight.trim() ||
+      !height.trim()
+    ) {
+      Alert.alert(
+        'Missing Information',
+        'Please enter blood pressure, heart rate, weight and height.'
+      );
+      return;
+    }
+
+    // Validate blood pressure format, for example 120/80
+    const bpMatch = bp.match(/^(\d{2,3})\s*\/\s*(\d{2,3})$/);
+
+    if (
+      !bpMatch ||
+      Number(bpMatch[1]) < 1 ||
+      Number(bpMatch[1]) > 300 ||
+      Number(bpMatch[2]) < 1 ||
+      Number(bpMatch[2]) > 200 ||
+      !Number.isFinite(hr) ||
+      hr < 1 ||
+      hr > 300 ||
+      !Number.isFinite(w) ||
+      w <= 0 ||
+      w > 500 ||
+      !Number.isFinite(h) ||
+      h <= 0 ||
+      h > 300
+    ) {
+      Alert.alert(
+        'Invalid Information',
+        'Enter valid readings. Example: blood pressure 120/80, heart rate 72, weight 60 kg and height 165 cm.'
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      // Get logged-in user
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+
+      if (!user) {
+        Alert.alert(
+          'Login Required',
+          'Please log in before saving your health information.'
+        );
+        return;
+      }
+
+      // Prepare health information
+      const healthData = {
+        user_id: user.id,
+        blood_pressure: bp,
+        heart_rate: Math.round(hr),
+        weight: w,
+        height: h,
+        bmi,
+        medical_condition: medicalCondition.trim() || 'None',
+      };
+
+      // Insert record into Supabase
+      const { error } = await supabase
+        .from('health_monitoring')
+        .insert([healthData]);
+
+      if (error) throw error;
+
+      Alert.alert(
+        'Success',
+        'Your health information has been saved successfully!'
+      );
+    } catch (error) {
+      console.error('Health Monitoring Save Error:', error);
+
+      Alert.alert(
+        'Save Failed',
+        error.message ||
+          'Unable to save health information. Please try again.'
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -43,8 +159,8 @@ export default function HealthMonitoringScreen({ navigation }) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
       >
-
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -54,7 +170,9 @@ export default function HealthMonitoringScreen({ navigation }) {
             <Text style={styles.backIcon}>‹</Text>
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Health Monitoring</Text>
+          <Text style={styles.headerTitle}>
+            Health Monitoring
+          </Text>
 
           <View style={styles.headerSpace} />
         </View>
@@ -68,13 +186,15 @@ export default function HealthMonitoringScreen({ navigation }) {
 
         {/* Health Overview */}
         <View style={styles.overviewCard}>
-          <Text style={styles.overviewTitle}>Health Overview</Text>
+          <Text style={styles.overviewTitle}>
+            Health Overview
+          </Text>
 
           <View style={styles.overviewRow}>
-
             <View style={styles.overviewItem}>
               <Text style={styles.overviewIcon}>❤️</Text>
               <Text style={styles.overviewLabel}>Heart Rate</Text>
+
               <Text style={styles.overviewValue}>
                 {heartRate ? `${heartRate} BPM` : '--'}
               </Text>
@@ -82,19 +202,21 @@ export default function HealthMonitoringScreen({ navigation }) {
 
             <View style={styles.overviewItem}>
               <Text style={styles.overviewIcon}>🩸</Text>
-              <Text style={styles.overviewLabel}>Blood Pressure</Text>
+              <Text style={styles.overviewLabel}>
+                Blood Pressure
+              </Text>
+
               <Text style={styles.overviewValue}>
                 {bloodPressure || '--'}
               </Text>
             </View>
-
           </View>
 
           <View style={styles.overviewRow}>
-
             <View style={styles.overviewItem}>
               <Text style={styles.overviewIcon}>⚖️</Text>
               <Text style={styles.overviewLabel}>Weight</Text>
+
               <Text style={styles.overviewValue}>
                 {weight ? `${weight} kg` : '--'}
               </Text>
@@ -103,23 +225,27 @@ export default function HealthMonitoringScreen({ navigation }) {
             <View style={styles.overviewItem}>
               <Text style={styles.overviewIcon}>📊</Text>
               <Text style={styles.overviewLabel}>BMI</Text>
+
               <Text style={styles.overviewValue}>
-                {bmi || '--'}
+                {bmi ?? '--'}
               </Text>
             </View>
-
           </View>
         </View>
 
         {/* Health Information */}
-        <Text style={styles.sectionTitle}>Health Information</Text>
+        <Text style={styles.sectionTitle}>
+          Health Information
+        </Text>
 
         {/* Blood Pressure */}
         <View style={styles.inputCard}>
           <Text style={styles.inputIcon}>🩸</Text>
 
           <View style={styles.inputContent}>
-            <Text style={styles.inputLabel}>Blood Pressure</Text>
+            <Text style={styles.inputLabel}>
+              Blood Pressure
+            </Text>
 
             <TextInput
               style={styles.input}
@@ -128,6 +254,7 @@ export default function HealthMonitoringScreen({ navigation }) {
               value={bloodPressure}
               onChangeText={setBloodPressure}
               keyboardType="numbers-and-punctuation"
+              maxLength={7}
             />
 
             <Text style={styles.inputHint}>
@@ -145,15 +272,16 @@ export default function HealthMonitoringScreen({ navigation }) {
 
             <TextInput
               style={styles.input}
-              placeholder="e.g. 72 BPM"
+              placeholder="e.g. 72"
               placeholderTextColor="#68716C"
               value={heartRate}
               onChangeText={setHeartRate}
               keyboardType="numeric"
+              maxLength={3}
             />
 
             <Text style={styles.inputHint}>
-              Enter your resting heart rate
+              Enter your resting heart rate in BPM
             </Text>
           </View>
         </View>
@@ -167,11 +295,12 @@ export default function HealthMonitoringScreen({ navigation }) {
 
             <TextInput
               style={styles.input}
-              placeholder="e.g. 60 kg"
+              placeholder="e.g. 60"
               placeholderTextColor="#68716C"
               value={weight}
               onChangeText={setWeight}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
+              maxLength={6}
             />
 
             <Text style={styles.inputHint}>
@@ -189,11 +318,12 @@ export default function HealthMonitoringScreen({ navigation }) {
 
             <TextInput
               style={styles.input}
-              placeholder="e.g. 165 cm"
+              placeholder="e.g. 165"
               placeholderTextColor="#68716C"
               value={height}
               onChangeText={setHeight}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
+              maxLength={6}
             />
 
             <Text style={styles.inputHint}>
@@ -203,12 +333,14 @@ export default function HealthMonitoringScreen({ navigation }) {
         </View>
 
         {/* BMI Result */}
-        {bmi && (
+        {bmi !== null && (
           <View style={styles.bmiCard}>
             <View>
               <Text style={styles.bmiSmall}>YOUR BMI</Text>
               <Text style={styles.bmiValue}>{bmi}</Text>
-              <Text style={styles.bmiStatus}>{getBMIStatus()}</Text>
+              <Text style={styles.bmiStatus}>
+                {getBMIStatus()}
+              </Text>
             </View>
 
             <Text style={styles.bmiIcon}>📊</Text>
@@ -233,31 +365,42 @@ export default function HealthMonitoringScreen({ navigation }) {
             onChangeText={setMedicalCondition}
             multiline
             numberOfLines={3}
+            maxLength={500}
           />
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={styles.saveButton}>
-          <Text style={styles.saveButtonText}>
-            Save Health Information
-          </Text>
+        <TouchableOpacity
+          style={[
+            styles.saveButton,
+            saving && styles.saveButtonDisabled,
+          ]}
+          onPress={handleSaveHealth}
+          disabled={saving}
+          activeOpacity={0.8}
+        >
+          {saving ? (
+            <ActivityIndicator color="#07100B" />
+          ) : (
+            <Text style={styles.saveButtonText}>
+              Save Health Information
+            </Text>
+          )}
         </TouchableOpacity>
 
-        {/* Safety Note */}
+        {/* Information Note */}
         <View style={styles.noteCard}>
           <Text style={styles.noteIcon}>ℹ️</Text>
 
           <Text style={styles.noteText}>
-            Keep your health information updated for more
-            personalized fitness recommendations.
+            Keep your health information updated for more personalized
+            fitness recommendations.
           </Text>
         </View>
-
       </ScrollView>
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => navigation.navigate('Dashboard')}
@@ -305,7 +448,6 @@ export default function HealthMonitoringScreen({ navigation }) {
           <Text style={styles.navIcon}>👤</Text>
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
-
       </View>
     </View>
   );
@@ -534,6 +676,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
+  },
+
+  saveButtonDisabled: {
+    opacity: 0.7,
   },
 
   saveButtonText: {
